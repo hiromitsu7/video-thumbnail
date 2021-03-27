@@ -85,7 +85,17 @@ func createFFPROBE(dir string, filename string, ext string) {
 	}
 }
 
-func readCSV(dir string, filename string, ext string) {
+func createSceneCSV(dir string, filename string, ext string) {
+	filePath := filepath.Join(dir, filename+ext)
+	fmt.Println("createSceneCSV: " + filePath)
+	_, err := exec.Command("scenedetect", "--input", filePath, "-o", dir, "detect-content", "list-scenes").CombinedOutput()
+	if err != nil {
+		fmt.Println(err)
+		log.Fatal("scenedetect error")
+	}
+}
+
+func readCSV(dir string, filename string, ext string) []float32 {
 	filePath := filepath.Join(dir, filename+ext)
 	fmt.Println(filePath)
 	reader, _ := os.Open(filePath)
@@ -97,12 +107,48 @@ func readCSV(dir string, filename string, ext string) {
 		log.Fatal(err)
 	}
 
+	slice := make([]float32, 1)
 	for i := 2; i < len(records); i++ {
 		a, _ := strconv.ParseFloat(records[i][3], 32)
 		b, _ := strconv.ParseFloat(records[i][6], 32)
-		mean := (a + b) / 2.0
-		fmt.Println(mean)
+		mean := float32((a + b) / 2.0)
+		slice = append(slice, mean)
 	}
+
+	return slice
+}
+
+func createThumbnailGif(dir string, filename string, ext string, scenes []float32) {
+	filePath := filepath.Join(dir, filename+ext)
+	for i, v := range scenes {
+		s := fmt.Sprintf("%08.3f", v)
+		fmt.Printf("#%3d: %s\n", i, s)
+		imageFilePath := filepath.Join(dir, filename+"_"+s+".jpg")
+		_, err := exec.Command("ffmpeg", "-y", "-i", filePath, "-vframes", "1", "-vf", "scale=320:-1", "-ss", s, "-f", "image2", imageFilePath).CombinedOutput()
+		if err != nil {
+			fmt.Println(err)
+			log.Fatal("ffmpeg error")
+		}
+	}
+
+	imageFiles := filepath.Join(dir, filename+"*.jpg")
+
+	gifFile := filepath.Join(dir, filename+".gif")
+	_, err := exec.Command("convert", "-delay", "100", imageFiles, gifFile).CombinedOutput()
+	if err != nil {
+		fmt.Println(err)
+		log.Fatal("covert error")
+	}
+}
+
+func clean(dir string, filename string, ext string) {
+	filepath.Walk(dir, func(path string, info os.FileInfo, err error) error {
+		if strings.Contains(path, filename) && (strings.HasSuffix(path, ".jpg") || strings.HasSuffix(path, ".csv")) {
+			fmt.Println(path)
+			os.Remove(path)
+		}
+		return nil
+	})
 }
 
 func main() {
@@ -130,13 +176,16 @@ func main() {
 	createFFPROBE(dir, md5, ext)
 
 	// シーン情報を取得する
-	// scenedetect --input cc33da8a36b5a9833e3862ed120de013.mp4 detect-content list-scenes
+	createSceneCSV(dir, md5, ext)
 
 	// シーン情報から静止画を切り出す
-	// cat cc33da8a36b5a9833e3862ed120de013-Scenes.csv
-	readCSV(dir, md5+"-Scenes", ".csv")
+	scenes := readCSV(dir, md5+"-Scenes", ".csv")
 
 	// 静止画からサムネイルGIFを作る
-	// ffmpeg -y -i ${tempDir}/${file} -vframes 1 -vf scale=320:-1 -ss ${lapTime} -f image2 ${tempDir}/${basename}_${formatted}.jpg
+	createThumbnailGif(dir, md5, ext, scenes)
 
+	// 中間ファイルを削除する
+	clean(dir, md5, ext)
+
+	fmt.Printf("thumbnale created!: %s/%s%s\n", dir, md5, ".gif")
 }
