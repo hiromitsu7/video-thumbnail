@@ -34,7 +34,7 @@ func splitFilePath(file string) (string, string, string) {
 func checkDAR(file string) bool {
 	out, _ := exec.Command("ffprobe", file).CombinedOutput()
 	output := string(out)
-	fmt.Println(output)
+	log.Println(output)
 	return strings.Contains(output, "DAR")
 }
 
@@ -42,12 +42,12 @@ func changeAspect(dir string, filename string, ext string) {
 	originalFile := filepath.Join(dir, filename+ext)
 	bakFile := filepath.Join(dir, filename+"_bak"+ext)
 
-	fmt.Println(originalFile)
-	fmt.Println(bakFile)
+	log.Println(originalFile)
+	log.Println(bakFile)
 
 	os.Rename(originalFile, bakFile)
 	out, _ := exec.Command("ffmpeg", "-i", bakFile, "-c", "copy", "-aspect", "16:9", originalFile).CombinedOutput()
-	fmt.Println(string(out))
+	log.Println(string(out))
 }
 
 func renameToMD5(dir string, filename string, ext string) string {
@@ -80,24 +80,24 @@ func createFFPROBE(dir string, filename string, ext string) {
 	probeFilePath := filepath.Join(dir, filename+".txt")
 	err := ioutil.WriteFile(probeFilePath, out, 0644)
 	if err != nil {
-		fmt.Println(err)
+		log.Println(err)
 		log.Fatal("probe error")
 	}
 }
 
 func createSceneCSV(dir string, filename string, ext string) {
 	filePath := filepath.Join(dir, filename+ext)
-	fmt.Println("createSceneCSV: " + filePath)
+	log.Println("createSceneCSV: " + filePath)
 	_, err := exec.Command("scenedetect", "--input", filePath, "-o", dir, "detect-content", "list-scenes").CombinedOutput()
 	if err != nil {
-		fmt.Println(err)
+		log.Println(err)
 		log.Fatal("scenedetect error")
 	}
 }
 
 func readCSV(dir string, filename string, ext string) []float32 {
 	filePath := filepath.Join(dir, filename+ext)
-	fmt.Println(filePath)
+	log.Println(filePath)
 	reader, _ := os.Open(filePath)
 	csvReader := csv.NewReader(reader)
 	csvReader.FieldsPerRecord = -1
@@ -122,11 +122,11 @@ func createThumbnailGif(dir string, filename string, ext string, scenes []float3
 	filePath := filepath.Join(dir, filename+ext)
 	for i, v := range scenes {
 		s := fmt.Sprintf("%08.3f", v)
-		fmt.Printf("#%3d: %s\n", i, s)
+		log.Printf("#%3d: %s\n", i, s)
 		imageFilePath := filepath.Join(dir, filename+"_"+s+".jpg")
 		_, err := exec.Command("ffmpeg", "-y", "-i", filePath, "-vframes", "1", "-vf", "scale=320:-1", "-ss", s, "-f", "image2", imageFilePath).CombinedOutput()
 		if err != nil {
-			fmt.Println(err)
+			log.Println(err)
 			log.Fatal("ffmpeg error")
 		}
 	}
@@ -136,7 +136,7 @@ func createThumbnailGif(dir string, filename string, ext string, scenes []float3
 	gifFile := filepath.Join(dir, filename+".gif")
 	_, err := exec.Command("convert", "-delay", "100", imageFiles, gifFile).CombinedOutput()
 	if err != nil {
-		fmt.Println(err)
+		log.Println(err)
 		log.Fatal("covert error")
 	}
 }
@@ -144,7 +144,7 @@ func createThumbnailGif(dir string, filename string, ext string, scenes []float3
 func clean(dir string, filename string, ext string) {
 	filepath.Walk(dir, func(path string, info os.FileInfo, err error) error {
 		if strings.Contains(path, filename) && (strings.HasSuffix(path, ".jpg") || strings.HasSuffix(path, ".csv")) {
-			fmt.Println(path)
+			log.Println(path)
 			os.Remove(path)
 		}
 		return nil
@@ -170,7 +170,7 @@ func main() {
 
 	// ファイルの内容からmd5を作る
 	md5 := renameToMD5(dir, filename, ext)
-	fmt.Println(md5)
+	log.Printf("rename to md5: %s", md5)
 
 	// probeファイルを作る
 	createFFPROBE(dir, md5, ext)
@@ -187,5 +187,6 @@ func main() {
 	// 中間ファイルを削除する
 	clean(dir, md5, ext)
 
-	fmt.Printf("thumbnail created!: %s/%s%s\n", dir, md5, ".gif")
+	log.Printf("thumbnail created!: %s/%s%s\n", dir, md5, ".gif")
+	fmt.Println(md5)
 }
