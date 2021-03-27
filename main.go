@@ -187,5 +187,5 @@ func main() {
 	// 中間ファイルを削除する
 	clean(dir, md5, ext)
 
-	fmt.Printf("thumbnale created!: %s/%s%s\n", dir, md5, ".gif")
+	fmt.Printf("thumbnail created!: %s/%s%s\n", dir, md5, ".gif")
 }
