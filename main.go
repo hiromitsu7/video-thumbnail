@@ -28,6 +28,7 @@ func splitFilePath(file string) (string, string, string) {
 	ext := filepath.Ext(file)
 	dir := path.Dir(file)
 	filename := strings.TrimSuffix(base, ext)
+	log.Printf("dir: %s, filename: %s, ext: %s", dir, filename, ext)
 	return dir, filename, ext
 }
 
@@ -112,7 +113,10 @@ func readCSV(dir string, filename string, ext string) []float32 {
 		a, _ := strconv.ParseFloat(records[i][3], 32)
 		b, _ := strconv.ParseFloat(records[i][6], 32)
 		mean := float32((a + b) / 2.0)
-		slice = append(slice, mean)
+		// 最後のシーンから20秒以上離れている場合のみ追加する
+		if slice[len(slice)-1]+20.0 < mean {
+			slice = append(slice, mean)
+		}
 	}
 
 	return slice
@@ -124,7 +128,7 @@ func createThumbnailGif(dir string, filename string, ext string, scenes []float3
 		s := fmt.Sprintf("%08.3f", v)
 		log.Printf("#%3d: %s\n", i, s)
 		imageFilePath := filepath.Join(dir, filename+"_"+s+".jpg")
-		_, err := exec.Command("ffmpeg", "-y", "-i", filePath, "-vframes", "1", "-vf", "scale=320:-1", "-ss", s, "-f", "image2", imageFilePath).CombinedOutput()
+		_, err := exec.Command("ffmpeg", "-y", "-ss", s, "-i", filePath, "-vframes", "1", "-vf", "scale=320:-1", "-f", "image2", imageFilePath).CombinedOutput()
 		if err != nil {
 			log.Println(err)
 			log.Fatal("ffmpeg error")
@@ -134,7 +138,7 @@ func createThumbnailGif(dir string, filename string, ext string, scenes []float3
 	imageFiles := filepath.Join(dir, filename+"*.jpg")
 
 	gifFile := filepath.Join(dir, filename+".gif")
-	_, err := exec.Command("convert", "-delay", "100", imageFiles, gifFile).CombinedOutput()
+	_, err := exec.Command("convert", "-delay", "70", imageFiles, gifFile).CombinedOutput()
 	if err != nil {
 		log.Println(err)
 		log.Fatal("covert error")
@@ -143,7 +147,7 @@ func createThumbnailGif(dir string, filename string, ext string, scenes []float3
 
 func clean(dir string, filename string, ext string) {
 	filepath.Walk(dir, func(path string, info os.FileInfo, err error) error {
-		if strings.Contains(path, filename) && (strings.HasSuffix(path, ".jpg") || strings.HasSuffix(path, ".csv")) {
+		if strings.Contains(path, filename) && (strings.HasSuffix(path, ".jpg") || strings.HasSuffix(path, ".csv") || strings.HasSuffix(path, ".txt")) {
 			log.Println(path)
 			os.Remove(path)
 		}
@@ -151,12 +155,7 @@ func clean(dir string, filename string, ext string) {
 	})
 }
 
-func main() {
-	// ファイルの存在チェック
-	if len(os.Args) < 2 {
-		log.Fatal("one arg is required")
-	}
-	filePath := os.Args[1]
+func mainProcess(filePath string) {
 	checkExist(filePath)
 
 	// ディレクトリ、ファイル名、拡張子に分解する
@@ -189,4 +188,20 @@ func main() {
 
 	log.Printf("thumbnail created!: %s/%s%s\n", dir, md5, ".gif")
 	fmt.Println(md5)
+}
+
+func main() {
+	// ファイルの存在チェック
+	if len(os.Args) < 2 {
+		log.Fatal("one arg is required")
+	}
+	filePath := os.Args[1]
+
+	filepath.Walk(filePath, func(path string, info os.FileInfo, err error) error {
+		if strings.HasSuffix(path, ".wmv") || strings.HasSuffix(path, ".mp4") {
+			log.Println(path)
+			mainProcess(path)
+		}
+		return nil
+	})
 }
