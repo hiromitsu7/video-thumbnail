@@ -113,8 +113,8 @@ func readCSV(dir string, filename string, ext string) []float32 {
 		a, _ := strconv.ParseFloat(records[i][3], 32)
 		b, _ := strconv.ParseFloat(records[i][6], 32)
 		mean := float32((a + b) / 2.0)
-		// 最後のシーンから20秒以上離れている場合のみ追加する
-		if slice[len(slice)-1]+20.0 < mean {
+		// 最後のシーンから15秒以上離れている場合のみ追加する
+		if slice[len(slice)-1]+15.0 < mean {
 			slice = append(slice, mean)
 		}
 	}
@@ -147,7 +147,7 @@ func createThumbnailGif(dir string, filename string, ext string, scenes []float3
 
 func clean(dir string, filename string, ext string) {
 	filepath.Walk(dir, func(path string, info os.FileInfo, err error) error {
-		if strings.Contains(path, filename) && (strings.HasSuffix(path, ".jpg") || strings.HasSuffix(path, ".csv") || strings.HasSuffix(path, ".txt")) {
+		if strings.Contains(path, filename) && (strings.HasSuffix(path, ".jpg") || strings.HasSuffix(path, ".csv")) {
 			log.Println(path)
 			os.Remove(path)
 		}
