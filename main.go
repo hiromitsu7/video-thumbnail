@@ -10,7 +10,6 @@ import (
 	"log"
 	"os"
 	"os/exec"
-	"path"
 	"path/filepath"
 	"strconv"
 	"strings"
@@ -24,9 +23,9 @@ func checkExist(file string) {
 }
 
 func splitFilePath(file string) (string, string, string) {
-	base := path.Base(file)
+	base := filepath.Base(file)
 	ext := filepath.Ext(file)
-	dir := path.Dir(file)
+	dir := filepath.Dir(file)
 	filename := strings.TrimSuffix(base, ext)
 	log.Printf("dir: %s, filename: %s, ext: %s", dir, filename, ext)
 	return dir, filename, ext
@@ -58,18 +57,24 @@ func renameToMD5(dir string, filename string, ext string) string {
 		log.Fatal("md5生成エラー")
 	}
 
-	defer file.Close()
 	hash := md5.New()
 
 	if _, err := io.Copy(hash, file); err != nil {
 		log.Fatal("md5生成エラー")
 	}
 
+	file.Close()
+
 	hashInBytes := hash.Sum(nil)[:16]
 	hashString := hex.EncodeToString(hashInBytes)
 
 	newFilePath := filepath.Join(dir, hashString+ext)
-	os.Rename(filePath, newFilePath)
+	log.Println("old path: " + filePath)
+	log.Println("new path: " + newFilePath)
+	err = os.Rename(filePath, newFilePath)
+	if err != nil {
+		log.Fatal("rename error")
+	}
 
 	return hashString
 }
@@ -100,6 +105,7 @@ func readCSV(dir string, filename string, ext string) []float32 {
 	filePath := filepath.Join(dir, filename+ext)
 	log.Println(filePath)
 	reader, _ := os.Open(filePath)
+	defer reader.Close()
 	csvReader := csv.NewReader(reader)
 	csvReader.FieldsPerRecord = -1
 
@@ -138,7 +144,7 @@ func createThumbnailGif(dir string, filename string, ext string, scenes []float3
 	imageFiles := filepath.Join(dir, filename+"*.jpg")
 
 	gifFile := filepath.Join(dir, filename+".gif")
-	_, err := exec.Command("convert", "-delay", "70", imageFiles, gifFile).CombinedOutput()
+	_, err := exec.Command("C:\\Program Files\\ImageMagick-7.1.0-portable-Q16-x64\\convert.exe", "-delay", "70", imageFiles, gifFile).CombinedOutput()
 	if err != nil {
 		log.Println(err)
 		log.Fatal("covert error")
@@ -149,7 +155,10 @@ func clean(dir string, filename string, ext string) {
 	filepath.Walk(dir, func(path string, info os.FileInfo, err error) error {
 		if strings.Contains(path, filename) && (strings.HasSuffix(path, ".jpg") || strings.HasSuffix(path, ".csv")) {
 			log.Println(path)
-			os.Remove(path)
+			err2 := os.Remove(path)
+			if err2 != nil {
+				log.Fatal("remove error")
+			}
 		}
 		return nil
 	})
